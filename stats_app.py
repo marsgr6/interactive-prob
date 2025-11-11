@@ -23,27 +23,34 @@ def get_discrete_range(dist_name, params, observed_max=None):
         return np.arange(0, n + 1)
     elif dist_name == "Poisson":
         lmbda = params['lambda']
+        # Rango hasta donde la probabilidad es significativa (sin límite superior arbitrario)
         k_max = int(np.ceil(lmbda + 10 * np.sqrt(max(lmbda, 1))))
-        k_max = min(max(k_max, 20), 200)
+        k_max = max(k_max, 20)  # Solo mínimo razonable para visualización
         if observed_max:
-            k_max = max(k_max, int(observed_max))
+            k_max = max(k_max, int(observed_max) + 10)
         return np.arange(0, k_max + 1)
     elif dist_name == "Geométrica":
         p = params['p']
-        if p > 0:
-            k_max = int(np.ceil(10 / p))
-            return np.arange(1, min(k_max, 200))
-        return np.arange(1, 50)
+        if p > 0 and p <= 1:
+            # Hasta el percentil 99.9 (sin límite arbitrario)
+            k_max = int(np.ceil(-np.log(0.001) / np.log(1 - p)))
+            k_max = max(k_max, 20)
+            return np.arange(1, k_max + 1)
+        return np.arange(1, 100)
     elif dist_name == "Binomial Negativa":
         r, p = params['r'], params['p']
-        if p > 0:
-            k_max = int(np.ceil(r * (1-p) / p + 10 * np.sqrt(r * (1-p) / p**2)))
-            return np.arange(0, min(k_max, 200))
-        return np.arange(0, 50)
+        if p > 0 and p <= 1:
+            mean = r * (1-p) / p
+            std = np.sqrt(r * (1-p) / p**2)
+            # 10 desviaciones estándar (sin límite arbitrario)
+            k_max = int(np.ceil(mean + 10 * std))
+            k_max = max(k_max, 20)
+            return np.arange(0, k_max + 1)
+        return np.arange(0, 100)
     elif dist_name == "Hipergeométrica":
         n = params['n']
         return np.arange(0, n + 1)
-    return np.arange(0, 50)
+    return np.arange(0, 100)
 
 # ===========================
 # TÍTULO PRINCIPAL
@@ -92,19 +99,19 @@ if seccion == "🎯 Distribuciones Discretas":
         
         if discrete_dist == "Binomial":
             with col1:
-                params['n'] = st.selectbox("n (ensayos)", list(range(1, 101)), index=9)
+                params['n'] = st.number_input("n (ensayos)", min_value=1, value=10, step=1)
             with col2:
-                params['p'] = st.selectbox("p (prob. éxito)", [round(i/100, 2) for i in range(0, 101)], index=50)
+                params['p'] = st.number_input("p (prob. éxito)", min_value=0.0, max_value=1.0, value=0.5, format="%.4f")
             with col3:
                 num_sims = st.number_input("Nº simulaciones", 100, 100000, 5000, 500)
             
-            sim_data = np.random.binomial(params['n'], params['p'], num_sims)
+            sim_data = np.random.binomial(int(params['n']), params['p'], num_sims)
             theo_mean = params['n'] * params['p']
             theo_var = params['n'] * params['p'] * (1 - params['p'])
             
         elif discrete_dist == "Poisson":
             with col1:
-                params['lambda'] = st.selectbox("λ (tasa)", [round(0.1*i, 1) for i in range(0, 301)], index=50)
+                params['lambda'] = st.number_input("λ (tasa)", min_value=0.01, value=5.0, format="%.4f")
             with col2:
                 num_sims = st.number_input("Nº simulaciones", 100, 100000, 5000, 500)
             with col3:
@@ -116,7 +123,7 @@ if seccion == "🎯 Distribuciones Discretas":
             
         elif discrete_dist == "Geométrica":
             with col1:
-                params['p'] = st.selectbox("p (prob. éxito)", [round(i/100, 2) for i in range(1, 101)], index=20)
+                params['p'] = st.number_input("p (prob. éxito)", min_value=0.001, max_value=1.0, value=0.2, format="%.4f")
             with col2:
                 num_sims = st.number_input("Nº simulaciones", 100, 100000, 5000, 500)
             with col3:
@@ -128,27 +135,29 @@ if seccion == "🎯 Distribuciones Discretas":
             
         elif discrete_dist == "Binomial Negativa":
             with col1:
-                params['r'] = st.selectbox("r (éxitos)", list(range(1, 51)), index=4)
+                params['r'] = st.number_input("r (éxitos)", min_value=1, value=5, step=1)
             with col2:
-                params['p'] = st.selectbox("p (prob. éxito)", [round(i/100, 2) for i in range(1, 101)], index=50)
+                params['p'] = st.number_input("p (prob. éxito)", min_value=0.001, max_value=1.0, value=0.5, format="%.4f")
             with col3:
                 num_sims = st.number_input("Nº simulaciones", 100, 100000, 5000, 500)
             
-            sim_data = np.random.negative_binomial(params['r'], params['p'], num_sims)
+            sim_data = np.random.negative_binomial(int(params['r']), params['p'], num_sims)
             theo_mean = params['r'] * (1 - params['p']) / params['p']
             theo_var = params['r'] * (1 - params['p']) / params['p']**2
             
         elif discrete_dist == "Hipergeométrica":
             with col1:
-                params['N'] = st.selectbox("N (población)", list(range(10, 201)), index=40)
+                params['N'] = st.number_input("N (población)", min_value=10, value=50, step=1)
             with col2:
-                params['K'] = st.selectbox("K (éxitos en pob.)", list(range(1, params['N']+1)), index=min(20, params['N']-1))
+                max_K = int(params['N']) - 1
+                params['K'] = st.number_input("K (éxitos en pob.)", min_value=1, max_value=max_K, value=min(20, max_K), step=1)
             with col3:
-                params['n'] = st.selectbox("n (muestra)", list(range(1, params['N']+1)), index=min(10, params['N']-1))
+                max_n = int(params['N'])
+                params['n'] = st.number_input("n (muestra)", min_value=1, max_value=max_n, value=min(10, max_n), step=1)
             
             num_sims = st.number_input("Nº simulaciones", 100, 100000, 5000, 500)
             
-            sim_data = np.random.hypergeometric(params['K'], params['N']-params['K'], params['n'], num_sims)
+            sim_data = np.random.hypergeometric(int(params['K']), int(params['N'])-int(params['K']), int(params['n']), num_sims)
             theo_mean = params['n'] * params['K'] / params['N']
             theo_var = params['n'] * (params['K']/params['N']) * (1-params['K']/params['N']) * (params['N']-params['n'])/(params['N']-1)
         
@@ -226,22 +235,20 @@ if seccion == "🎯 Distribuciones Discretas":
         
         if discrete_dist == "Binomial":
             with calc_cols[0]:
-                calc_params['n'] = st.selectbox("n (ensayos)", list(range(1, 101)), index=9, key="calc_n")
+                calc_params['n'] = st.number_input("n (ensayos)", min_value=1, value=10, step=1, key="calc_n")
             with calc_cols[1]:
-                calc_params['p'] = st.selectbox("p (prob. éxito)", [round(i/100, 2) for i in range(0, 101)], index=50, key="calc_p")
+                calc_params['p'] = st.number_input("p (prob. éxito)", min_value=0.0, max_value=1.0, value=0.5, format="%.4f", key="calc_p")
             with calc_cols[2]:
-                k_options = list(range(0, calc_params['n'] + 1))
-                k_calc = st.selectbox("k", k_options, index=min(calc_params['n']//2, len(k_options)-1))
+                k_calc = st.number_input("k", min_value=0, max_value=int(calc_params['n']), value=int(calc_params['n']//2), step=1)
             
-            pmf_val = binom.pmf(k_calc, calc_params['n'], calc_params['p'])
-            cdf_val = binom.cdf(k_calc, calc_params['n'], calc_params['p'])
+            pmf_val = binom.pmf(k_calc, int(calc_params['n']), calc_params['p'])
+            cdf_val = binom.cdf(k_calc, int(calc_params['n']), calc_params['p'])
             
         elif discrete_dist == "Poisson":
             with calc_cols[0]:
-                calc_params['lambda'] = st.selectbox("λ (tasa)", [round(0.1*i, 1) for i in range(0, 301)], index=50, key="calc_lam")
+                calc_params['lambda'] = st.number_input("λ (tasa)", min_value=0.01, value=5.0, format="%.4f", key="calc_lam")
             with calc_cols[1]:
-                k_domain = get_discrete_range("Poisson", {'lambda': calc_params['lambda']})
-                k_calc = st.selectbox("k", list(k_domain), index=int(np.clip(calc_params['lambda'], 0, len(k_domain)-1)))
+                k_calc = st.number_input("k", min_value=0, value=int(calc_params['lambda']), step=1)
             with calc_cols[2]:
                 st.markdown("—")
             
@@ -250,10 +257,9 @@ if seccion == "🎯 Distribuciones Discretas":
             
         elif discrete_dist == "Geométrica":
             with calc_cols[0]:
-                calc_params['p'] = st.selectbox("p (prob. éxito)", [round(i/100, 2) for i in range(1, 101)], index=20, key="calc_p_geom")
+                calc_params['p'] = st.number_input("p (prob. éxito)", min_value=0.001, max_value=1.0, value=0.2, format="%.4f", key="calc_p_geom")
             with calc_cols[1]:
-                k_domain = get_discrete_range("Geométrica", {'p': calc_params['p']})
-                k_calc = st.selectbox("k", list(k_domain), index=min(10, len(k_domain)-1))
+                k_calc = st.number_input("k", min_value=1, value=int(1/calc_params['p']), step=1)
             with calc_cols[2]:
                 st.markdown("—")
             
@@ -262,29 +268,28 @@ if seccion == "🎯 Distribuciones Discretas":
             
         elif discrete_dist == "Binomial Negativa":
             with calc_cols[0]:
-                calc_params['r'] = st.selectbox("r (éxitos)", list(range(1, 51)), index=4, key="calc_r")
+                calc_params['r'] = st.number_input("r (éxitos)", min_value=1, value=5, step=1, key="calc_r")
             with calc_cols[1]:
-                calc_params['p'] = st.selectbox("p (prob. éxito)", [round(i/100, 2) for i in range(1, 101)], index=50, key="calc_p_nb")
+                calc_params['p'] = st.number_input("p (prob. éxito)", min_value=0.001, max_value=1.0, value=0.5, format="%.4f", key="calc_p_nb")
             with calc_cols[2]:
-                k_domain = get_discrete_range("Binomial Negativa", calc_params)
-                k_calc = st.selectbox("k", list(k_domain), index=min(10, len(k_domain)-1))
+                mean_val = int(calc_params['r'] * (1-calc_params['p']) / calc_params['p'])
+                k_calc = st.number_input("k", min_value=0, value=mean_val, step=1)
             
-            pmf_val = nbinom.pmf(k_calc, calc_params['r'], calc_params['p'])
-            cdf_val = nbinom.cdf(k_calc, calc_params['r'], calc_params['p'])
+            pmf_val = nbinom.pmf(k_calc, int(calc_params['r']), calc_params['p'])
+            cdf_val = nbinom.cdf(k_calc, int(calc_params['r']), calc_params['p'])
             
         elif discrete_dist == "Hipergeométrica":
             with calc_cols[0]:
-                calc_params['N'] = st.selectbox("N (población)", list(range(10, 201)), index=40, key="calc_N")
+                calc_params['N'] = st.number_input("N (población)", min_value=10, value=50, step=1, key="calc_N")
             with calc_cols[1]:
-                calc_params['K'] = st.selectbox("K (éxitos)", list(range(1, calc_params['N']+1)), index=min(20, calc_params['N']-1), key="calc_K")
+                calc_params['K'] = st.number_input("K (éxitos)", min_value=1, max_value=int(calc_params['N']), value=min(20, int(calc_params['N'])-1), step=1, key="calc_K")
             with calc_cols[2]:
-                calc_params['n'] = st.selectbox("n (muestra)", list(range(1, calc_params['N']+1)), index=min(10, calc_params['N']-1), key="calc_n_hyper")
+                calc_params['n'] = st.number_input("n (muestra)", min_value=1, max_value=int(calc_params['N']), value=min(10, int(calc_params['N'])), step=1, key="calc_n_hyper")
             
-            k_domain = get_discrete_range("Hipergeométrica", calc_params)
-            k_calc = st.selectbox("k", list(k_domain), index=min(5, len(k_domain)-1), key="calc_k_hyper")
+            k_calc = st.number_input("k", min_value=0, max_value=int(calc_params['n']), value=min(5, int(calc_params['n'])), step=1, key="calc_k_hyper")
             
-            pmf_val = hypergeom.pmf(k_calc, calc_params['N'], calc_params['K'], calc_params['n'])
-            cdf_val = hypergeom.cdf(k_calc, calc_params['N'], calc_params['K'], calc_params['n'])
+            pmf_val = hypergeom.pmf(k_calc, int(calc_params['N']), int(calc_params['K']), int(calc_params['n']))
+            cdf_val = hypergeom.cdf(k_calc, int(calc_params['N']), int(calc_params['K']), int(calc_params['n']))
         
         # Mostrar resultados
         result_cols = st.columns(2)
@@ -317,9 +322,9 @@ elif seccion == "📈 Distribuciones Continuas":
         
         if continuous_dist == "Normal":
             with col1:
-                cont_params['mu'] = st.number_input("μ (media)", -10.0, 10.0, 0.0, 0.5)
+                cont_params['mu'] = st.number_input("μ (media)", value=0.0, format="%.4f")
             with col2:
-                cont_params['sigma'] = st.number_input("σ (desv. est.)", 0.1, 10.0, 1.0, 0.1)
+                cont_params['sigma'] = st.number_input("σ (desv. est.)", min_value=0.01, value=1.0, format="%.4f")
             with col3:
                 num_sims_cont = st.number_input("Nº simulaciones", 100, 100000, 5000, 500)
             
@@ -329,9 +334,9 @@ elif seccion == "📈 Distribuciones Continuas":
             
         elif continuous_dist == "Uniforme":
             with col1:
-                cont_params['a'] = st.number_input("a (mínimo)", -10.0, 10.0, 0.0, 0.5)
+                cont_params['a'] = st.number_input("a (mínimo)", value=0.0, format="%.4f")
             with col2:
-                cont_params['b'] = st.number_input("b (máximo)", cont_params['a']+0.1, 20.0, cont_params['a']+1.0, 0.5)
+                cont_params['b'] = st.number_input("b (máximo)", min_value=cont_params['a']+0.01, value=cont_params['a']+1.0, format="%.4f")
             with col3:
                 num_sims_cont = st.number_input("Nº simulaciones", 100, 100000, 5000, 500)
             
@@ -341,7 +346,7 @@ elif seccion == "📈 Distribuciones Continuas":
             
         elif continuous_dist == "Exponencial":
             with col1:
-                cont_params['lambda'] = st.number_input("λ (tasa)", 0.1, 10.0, 1.0, 0.1)
+                cont_params['lambda'] = st.number_input("λ (tasa)", min_value=0.01, value=1.0, format="%.4f")
             with col2:
                 num_sims_cont = st.number_input("Nº simulaciones", 100, 100000, 5000, 500)
             with col3:
@@ -353,9 +358,9 @@ elif seccion == "📈 Distribuciones Continuas":
             
         elif continuous_dist == "Gamma":
             with col1:
-                cont_params['shape'] = st.number_input("α (forma)", 0.1, 20.0, 2.0, 0.1)
+                cont_params['shape'] = st.number_input("α (forma)", min_value=0.01, value=2.0, format="%.4f")
             with col2:
-                cont_params['scale'] = st.number_input("β (escala)", 0.1, 10.0, 1.0, 0.1)
+                cont_params['scale'] = st.number_input("β (escala)", min_value=0.01, value=1.0, format="%.4f")
             with col3:
                 num_sims_cont = st.number_input("Nº simulaciones", 100, 100000, 5000, 500)
             
@@ -365,9 +370,9 @@ elif seccion == "📈 Distribuciones Continuas":
             
         elif continuous_dist == "Beta":
             with col1:
-                cont_params['alpha'] = st.number_input("α", 0.1, 10.0, 2.0, 0.1)
+                cont_params['alpha'] = st.number_input("α", min_value=0.01, value=2.0, format="%.4f")
             with col2:
-                cont_params['beta'] = st.number_input("β", 0.1, 10.0, 2.0, 0.1)
+                cont_params['beta'] = st.number_input("β", min_value=0.01, value=2.0, format="%.4f")
             with col3:
                 num_sims_cont = st.number_input("Nº simulaciones", 100, 100000, 5000, 500)
             
@@ -378,9 +383,9 @@ elif seccion == "📈 Distribuciones Continuas":
             
         elif continuous_dist == "Weibull":
             with col1:
-                cont_params['shape'] = st.number_input("k (forma)", 0.1, 10.0, 1.5, 0.1)
+                cont_params['shape'] = st.number_input("k (forma)", min_value=0.01, value=1.5, format="%.4f")
             with col2:
-                cont_params['scale'] = st.number_input("λ (escala)", 0.1, 10.0, 1.0, 0.1)
+                cont_params['scale'] = st.number_input("λ (escala)", min_value=0.01, value=1.0, format="%.4f")
             with col3:
                 num_sims_cont = st.number_input("Nº simulaciones", 100, 100000, 5000, 500)
             
@@ -460,9 +465,9 @@ elif seccion == "📈 Distribuciones Continuas":
         
         if continuous_dist == "Normal":
             with calc_cols_cont[0]:
-                calc_params_cont['mu'] = st.number_input("μ (media)", -10.0, 10.0, 0.0, 0.5, key="calc_mu")
+                calc_params_cont['mu'] = st.number_input("μ (media)", value=0.0, format="%.4f", key="calc_mu")
             with calc_cols_cont[1]:
-                calc_params_cont['sigma'] = st.number_input("σ (desv. est.)", 0.1, 10.0, 1.0, 0.1, key="calc_sigma")
+                calc_params_cont['sigma'] = st.number_input("σ (desv. est.)", min_value=0.01, value=1.0, format="%.4f", key="calc_sigma")
             with calc_cols_cont[2]:
                 st.markdown("—")
             
@@ -471,9 +476,9 @@ elif seccion == "📈 Distribuciones Continuas":
             
         elif continuous_dist == "Uniforme":
             with calc_cols_cont[0]:
-                calc_params_cont['a'] = st.number_input("a (mínimo)", -10.0, 10.0, 0.0, 0.5, key="calc_a")
+                calc_params_cont['a'] = st.number_input("a (mínimo)", value=0.0, format="%.4f", key="calc_a")
             with calc_cols_cont[1]:
-                calc_params_cont['b'] = st.number_input("b (máximo)", calc_params_cont['a']+0.1, 20.0, calc_params_cont['a']+1.0, 0.5, key="calc_b")
+                calc_params_cont['b'] = st.number_input("b (máximo)", min_value=calc_params_cont['a']+0.01, value=calc_params_cont['a']+1.0, format="%.4f", key="calc_b")
             with calc_cols_cont[2]:
                 st.markdown("—")
             
@@ -482,7 +487,7 @@ elif seccion == "📈 Distribuciones Continuas":
             
         elif continuous_dist == "Exponencial":
             with calc_cols_cont[0]:
-                calc_params_cont['lambda'] = st.number_input("λ (tasa)", 0.1, 10.0, 1.0, 0.1, key="calc_lambda")
+                calc_params_cont['lambda'] = st.number_input("λ (tasa)", min_value=0.01, value=1.0, format="%.4f", key="calc_lambda")
             with calc_cols_cont[1]:
                 st.markdown("—")
             with calc_cols_cont[2]:
@@ -493,9 +498,9 @@ elif seccion == "📈 Distribuciones Continuas":
             
         elif continuous_dist == "Gamma":
             with calc_cols_cont[0]:
-                calc_params_cont['shape'] = st.number_input("α (forma)", 0.1, 20.0, 2.0, 0.1, key="calc_shape_gamma")
+                calc_params_cont['shape'] = st.number_input("α (forma)", min_value=0.01, value=2.0, format="%.4f", key="calc_shape_gamma")
             with calc_cols_cont[1]:
-                calc_params_cont['scale'] = st.number_input("β (escala)", 0.1, 10.0, 1.0, 0.1, key="calc_scale_gamma")
+                calc_params_cont['scale'] = st.number_input("β (escala)", min_value=0.01, value=1.0, format="%.4f", key="calc_scale_gamma")
             with calc_cols_cont[2]:
                 st.markdown("—")
             
@@ -504,9 +509,9 @@ elif seccion == "📈 Distribuciones Continuas":
             
         elif continuous_dist == "Beta":
             with calc_cols_cont[0]:
-                calc_params_cont['alpha'] = st.number_input("α", 0.1, 10.0, 2.0, 0.1, key="calc_alpha")
+                calc_params_cont['alpha'] = st.number_input("α", min_value=0.01, value=2.0, format="%.4f", key="calc_alpha")
             with calc_cols_cont[1]:
-                calc_params_cont['beta'] = st.number_input("β", 0.1, 10.0, 2.0, 0.1, key="calc_beta")
+                calc_params_cont['beta'] = st.number_input("β", min_value=0.01, value=2.0, format="%.4f", key="calc_beta")
             with calc_cols_cont[2]:
                 st.markdown("—")
             
@@ -515,9 +520,9 @@ elif seccion == "📈 Distribuciones Continuas":
             
         elif continuous_dist == "Weibull":
             with calc_cols_cont[0]:
-                calc_params_cont['shape'] = st.number_input("k (forma)", 0.1, 10.0, 1.5, 0.1, key="calc_shape_weib")
+                calc_params_cont['shape'] = st.number_input("k (forma)", min_value=0.01, value=1.5, format="%.4f", key="calc_shape_weib")
             with calc_cols_cont[1]:
-                calc_params_cont['scale'] = st.number_input("λ (escala)", 0.1, 10.0, 1.0, 0.1, key="calc_scale_weib")
+                calc_params_cont['scale'] = st.number_input("λ (escala)", min_value=0.01, value=1.0, format="%.4f", key="calc_scale_weib")
             with calc_cols_cont[2]:
                 st.markdown("—")
             
@@ -604,11 +609,540 @@ elif seccion == "📊 Conceptos Estadísticos":
     
     concepto = st.selectbox(
         "Selecciona un concepto",
-        ["Histogramas y Bines", "Correlación", "Ley de Grandes Números", "Teorema Límite Central", "Exactitud y Precisión"]
+        ["PCA y Regresión", "t-SNE", "Histogramas y Bines", "Correlación", "Ley de Grandes Números", "Teorema Límite Central", "Exactitud y Precisión"]
     )
     
+    # ===== PCA Y REGRESIÓN =====
+    if concepto == "PCA y Regresión":
+        st.subheader("🎯 PCA, Regresión, Covarianza, KDE y Elipse")
+        st.markdown("""
+        Esta herramienta genera **datos bivariados correlacionados** y visualiza:
+        - 🔵 Nube de puntos con datos correlacionados
+        - 📈 Línea de regresión lineal
+        - ➡️ Componentes principales (PCA)
+        - ⭕ Elipse de covarianza (95% confianza)
+        - 📊 Densidades marginales (KDE) de X e Y
+        
+        **¿Qué es PCA?** El Análisis de Componentes Principales encuentra las direcciones de máxima varianza en los datos.
+        """)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            rho = st.slider("Coeficiente de correlación ρ", -0.999, 0.999, -0.9, 0.01)
+        with col2:
+            n = st.number_input("Número de puntos", min_value=100, max_value=10000, value=500, step=100)
+        
+        # Generate correlated data
+        np.random.seed(0)
+        mean = [0, 0]
+        cov = [[1, rho],
+               [rho, 1]]
+        
+        data = np.random.multivariate_normal(mean, cov, int(n))
+        x, y = data[:,0], data[:,1]
+        
+        # Covariance and PCA
+        C = np.cov(x, y)
+        eigvals, eigvecs = np.linalg.eigh(C)
+        order = np.argsort(eigvals)[::-1]
+        eigvals = eigvals[order]
+        eigvecs = eigvecs[:, order]
+        
+        origin = np.mean(data, axis=0)
+        
+        # Regression line
+        beta = np.polyfit(x, y, 1)
+        x_line = np.linspace(min(x), max(x), 300)
+        y_line = beta[0] * x_line + beta[1]
+        
+        # Covariance ellipse (95%)
+        chi2_val = 5.991  # 95% confidence for 2D
+        width = 2 * np.sqrt(eigvals[0] * chi2_val)
+        height = 2 * np.sqrt(eigvals[1] * chi2_val)
+        angle = np.degrees(np.arctan2(eigvecs[1, 0], eigvecs[0, 0]))
+        
+        # KDE marginal densities
+        kde_x = gaussian_kde(x)
+        kde_y = gaussian_kde(y)
+        
+        x_grid = np.linspace(min(x), max(x), 300)
+        y_grid = np.linspace(min(y), max(y), 300)
+        
+        # Create main figure
+        fig = go.Figure()
+        
+        # Scatter plot
+        fig.add_trace(go.Scatter(
+            x=x,
+            y=y,
+            mode='markers',
+            name='Datos',
+            marker=dict(size=4, color='steelblue', opacity=0.5),
+            showlegend=True
+        ))
+        
+        # Regression line
+        fig.add_trace(go.Scatter(
+            x=x_line,
+            y=y_line,
+            mode='lines',
+            name='Regresión lineal',
+            line=dict(color='red', width=2),
+            showlegend=True
+        ))
+        
+        # PCA components (eigenvectors) - usando annotations para flechas
+        colors = ['green', 'orange']
+        annotations = []
+        for i in range(2):
+            vec = eigvecs[:, i] * np.sqrt(eigvals[i]) * 3
+            fig.add_trace(go.Scatter(
+                x=[origin[0], origin[0] + vec[0]],
+                y=[origin[1], origin[1] + vec[1]],
+                mode='lines',
+                name=f'PC{i+1} (λ={eigvals[i]:.3f})',
+                line=dict(color=colors[i], width=3),
+                showlegend=True
+            ))
+            # Agregar anotación con flecha al final del vector
+            annotations.append(
+                dict(
+                    ax=origin[0], ay=origin[1],
+                    x=origin[0] + vec[0], y=origin[1] + vec[1],
+                    xref='x', yref='y',
+                    axref='x', ayref='y',
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowsize=1.5,
+                    arrowwidth=2,
+                    arrowcolor=colors[i],
+                    opacity=0.8
+                )
+            )
+        
+        # Covariance ellipse (95%)
+        t = np.linspace(0, 2*np.pi, 400)
+        ellipse_x = origin[0] + (width/2)*np.cos(t)*np.cos(np.radians(angle)) - (height/2)*np.sin(t)*np.sin(np.radians(angle))
+        ellipse_y = origin[1] + (width/2)*np.cos(t)*np.sin(np.radians(angle)) + (height/2)*np.sin(t)*np.cos(np.radians(angle))
+        
+        fig.add_trace(go.Scatter(
+            x=ellipse_x,
+            y=ellipse_y,
+            mode='lines',
+            name='Elipse 95%',
+            line=dict(color='purple', width=2, dash='dash'),
+            showlegend=True
+        ))
+        
+        # Marginal KDE for X (shifted down)
+        kde_x_vals = kde_x(x_grid)
+        shift = min(y) - 0.5  # Shift below the data
+        fig.add_trace(go.Scatter(
+            x=x_grid,
+            y=kde_x_vals + shift,
+            mode='lines',
+            name='KDE marginal X',
+            line=dict(color='cyan', width=2),
+            #fill='tozeroy',
+            #fillcolor='rgba(0, 255, 255, 0.2)',
+            showlegend=True
+        ))
+        
+        # Marginal KDE for Y (shifted left)
+        kde_y_vals = kde_y(y_grid)
+        shift = min(x) - 0.5  # Shift to the left of the data
+        fig.add_trace(go.Scatter(
+            x=kde_y_vals + shift,
+            y=y_grid,
+            mode='lines',
+            name='KDE marginal Y',
+            line=dict(color='magenta', width=2),
+            #fill='tozerox',
+            #fillcolor='rgba(255, 0, 255, 0.2)',
+            showlegend=True
+        ))
+        
+        # IMPORTANTE: Ejes con la misma escala
+        axis_range = [min(min(x), min(y)) - 1, max(max(x), max(y)) + 1]
+        
+        fig.update_layout(
+            title=f"PCA, Regresión, Covarianza, KDE y Elipse (ρ = {rho:.2f})",
+            xaxis_title="X",
+            yaxis_title="Y",
+            xaxis=dict(
+                scaleanchor="y",
+                scaleratio=1,
+                range=axis_range
+            ),
+            yaxis=dict(
+                range=axis_range
+            ),
+            height=600,
+            showlegend=True,
+            hovermode='closest',
+            annotations=annotations
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Mostrar estadísticas
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            st.metric("Correlación muestral", f"{np.corrcoef(x, y)[0, 1]:.4f}")
+        with col_b:
+            st.metric("Varianza explicada PC1", f"{eigvals[0]/(eigvals[0]+eigvals[1])*100:.2f}%")
+        with col_c:
+            st.metric("Pendiente regresión", f"{beta[0]:.4f}")
+        
+        st.info("""
+        **💡 Interpretación:**
+        - **PC1 (verde):** Dirección de máxima varianza
+        - **PC2 (naranja):** Dirección perpendicular a PC1
+        - **Elipse morada:** Contiene ~95% de los datos
+        - **KDE marginal:** Muestra la distribución de cada variable individualmente
+        """)
+    
+    # ===== t-SNE =====
+    elif concepto == "t-SNE":
+        st.subheader("🔮 t-SNE (t-Distributed Stochastic Neighbor Embedding)")
+        st.markdown("""
+        **t-SNE** es un algoritmo de reducción de dimensionalidad que preserva las distancias locales.
+        Es especialmente útil para visualizar datos de alta dimensión en 2D o 3D.
+        
+        **¿Cómo funciona?**
+        1. Calcula similitudes entre puntos en el espacio original (distribución Gaussiana)
+        2. Inicializa puntos aleatoriamente en el espacio reducido
+        3. Ajusta las posiciones para que las similitudes se preserven (distribución t-Student)
+        4. Itera minimizando la divergencia KL entre las distribuciones
+        """)
+        
+        # Parámetros de control
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            n_samples_per_class = st.slider("Muestras por dígito", 10, 100, 30, 10)
+        with col2:
+            perplexity_val = st.slider("Perplexity", 5, 50, 30, 5)
+        with col3:
+            lr_val = st.slider("Learning rate", 10, 1000, 200, 50)
+        
+        col4, col5 = st.columns(2)
+        with col4:
+            n_iterations = st.slider("Iteraciones totales", 250, 2000, 1000, 250)
+        with col5:
+            n_frames = st.slider("Número de frames a capturar", 4, 16, 9, 1)
+        
+        # Cargar MNIST digits desde sklearn
+        with st.spinner('Cargando MNIST digits...'):
+            from sklearn.datasets import load_digits
+            from sklearn.manifold import TSNE
+            digits = load_digits()
+            X_full = digits.data  # 1797 samples, 64 features (8x8 images)
+            y_full = digits.target  # Labels 0-9
+        
+        # Muestreo balanceado por clase
+        np.random.seed(42)
+        X_samples = []
+        y_samples = []
+        
+        for digit in range(10):
+            # Obtener índices de este dígito
+            indices = np.where(y_full == digit)[0]
+            # Muestrear aleatoriamente n_samples_per_class
+            sampled_indices = np.random.choice(indices, size=min(n_samples_per_class, len(indices)), replace=False)
+            X_samples.append(X_full[sampled_indices])
+            y_samples.append(y_full[sampled_indices])
+        
+        X = np.vstack(X_samples)
+        y = np.concatenate(y_samples)
+        
+        # Colores para cada dígito (paleta de 10 colores)
+        color_palette = [
+            '#1f77b4',  # 0: azul
+            '#ff7f0e',  # 1: naranja
+            '#2ca02c',  # 2: verde
+            '#d62728',  # 3: rojo
+            '#9467bd',  # 4: púrpura
+            '#8c564b',  # 5: marrón
+            '#e377c2',  # 6: rosa
+            '#7f7f7f',  # 7: gris
+            '#bcbd22',  # 8: amarillo-verde
+            '#17becf'   # 9: cian
+        ]
+        colors = [color_palette[label] for label in y]
+        
+        st.success(f"✅ Cargados {len(X)} dígitos MNIST ({n_samples_per_class} por clase, clases 0-9)")
+        
+        # Ejecutar t-SNE con sklearn capturando frames intermedios
+        with st.spinner('Ejecutando t-SNE...'):
+            frames = []
+            kl_divergences = []
+            
+            # Calcular en cuántas iteraciones capturar cada frame
+            # Asegurar que todas las iteraciones sean >= 250 (mínimo de sklearn)
+            capture_iterations = np.linspace(250, n_iterations, n_frames, dtype=int)
+            
+            for i, n_iter in enumerate(capture_iterations):
+                # Ejecutar t-SNE hasta n_iter iteraciones
+                tsne = TSNE(
+                    n_components=2,
+                    perplexity=perplexity_val,
+                    learning_rate=lr_val,
+                    n_iter=n_iter,
+                    random_state=42,
+                    init='random',
+                    method='barnes_hut',
+                    verbose=0
+                )
+                Y_current = tsne.fit_transform(X)
+                frames.append(Y_current.copy())
+                kl_divergences.append(tsne.kl_divergence_)
+            
+            Y_final = frames[-1]
+            kl_divergence_final = kl_divergences[-1]
+        
+        st.success(f"✅ t-SNE completado con {len(frames)} frames capturados (KL final: {kl_divergence_final:.4f})")
+        
+        # Crear paneles con subplots
+        n_frames_display = len(frames)
+        
+        # Determinar layout de subplots
+        if n_frames_display <= 3:
+            rows, cols = 1, n_frames_display
+        elif n_frames_display <= 6:
+            rows, cols = 2, 3
+        elif n_frames_display <= 9:
+            rows, cols = 3, 3
+        elif n_frames_display <= 12:
+            rows, cols = 3, 4
+        else:
+            rows, cols = 4, 4
+            frames = frames[:16]  # Limitar a 16 frames
+            n_frames_display = 16
+        
+        # Crear subplots
+        subplot_titles = [f"Iter {capture_iterations[i]}" for i in range(n_frames_display)]
+        
+        fig = make_subplots(
+            rows=rows, cols=cols,
+            subplot_titles=subplot_titles,
+            horizontal_spacing=0.05,
+            vertical_spacing=0.1
+        )
+        
+        # Agregar cada frame a su subplot
+        for idx, frame in enumerate(frames):
+            row = idx // cols + 1
+            col = idx % cols + 1
+            
+            fig.add_trace(
+                go.Scatter(
+                    x=frame[:, 0],
+                    y=frame[:, 1],
+                    mode='markers',
+                    marker=dict(
+                        size=6,
+                        color=colors,
+                        opacity=0.7,
+                        line=dict(width=0.5, color='white')
+                    ),
+                    text=[f"Dígito {label}" for label in y],
+                    hovertemplate='%{text}<br>x: %{x:.2f}<br>y: %{y:.2f}<extra></extra>',
+                    showlegend=False
+                ),
+                row=row, col=col
+            )
+            
+            # Hacer ejes cuadrados (misma escala)
+            fig.update_xaxes(scaleanchor=f"y{idx+1}", scaleratio=1, row=row, col=col)
+            fig.update_yaxes(row=row, col=col)
+        
+        fig.update_layout(
+            title_text=f"Evolución de t-SNE en MNIST (perplexity={perplexity_val}, lr={lr_val})",
+            height=200 * rows,
+            showlegend=False
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Leyenda de colores
+        st.markdown("### 🎨 Leyenda de Dígitos")
+        legend_cols = st.columns(10)
+        for i, (digit, color) in enumerate(zip(range(10), color_palette)):
+            with legend_cols[i]:
+                st.markdown(f"<div style='text-align: center;'><span style='color: {color}; font-size: 24px;'>●</span><br><b>{digit}</b></div>", unsafe_allow_html=True)
+        
+        # ===== GRÁFICO DE DIVERGENCIA KL =====
+        st.subheader("📉 Convergencia: Divergencia KL vs Iteraciones")
+        
+        fig_kl = go.Figure()
+        
+        fig_kl.add_trace(go.Scatter(
+            x=capture_iterations.tolist(),
+            y=kl_divergences,
+            mode='lines+markers',
+            name='KL Divergence',
+            line=dict(color='crimson', width=2),
+            marker=dict(size=8, color='blue', symbol='circle'),
+            fill='tozeroy',
+            fillcolor='rgba(220, 20, 60, 0.2)'
+        ))
+        
+        fig_kl.update_layout(
+            xaxis_title="Iteración",
+            yaxis_title="Divergencia KL(P||Q) [escala log]",
+            yaxis_type="log",  # ⭐ ESCALA LOGARÍTMICA
+            height=500,
+            showlegend=True,
+            hovermode='x unified'
+        )
+        
+        
+        st.plotly_chart(fig_kl, use_container_width=True)
+        
+        # Métricas de convergencia
+        col_kl1, col_kl2, col_kl3 = st.columns(3)
+        with col_kl1:
+            st.metric("KL Inicial", f"{kl_divergences[0]:.4f}")
+        with col_kl2:
+            st.metric("KL Final", f"{kl_divergences[-1]:.4f}")
+        with col_kl3:
+            reduction = (kl_divergences[0] - kl_divergences[-1]) / kl_divergences[0] * 100
+            st.metric("Reducción", f"{reduction:.2f}%", delta=f"-{reduction:.2f}%")
+        
+        st.info("""
+        **📉 Interpretación de la Divergencia KL (escala logarítmica):**
+        - **Escala log:** Permite ver tanto valores altos iniciales como bajos finales en un mismo gráfico
+        - **Inicio alto (>2.0):** Las distribuciones P y Q son muy diferentes
+        - **Descenso rápido:** El algoritmo está aprendiendo la estructura (fase de "early exaggeration")
+        - **Descenso gradual:** Optimización y refinamiento de clusters
+        - **Plateau final (<0.5):** Convergencia alcanzada - diferencia mínima entre P y Q
+        - **Puntos azules:** Momentos donde se capturaron los frames visualizados arriba
+        
+        💡 En escala log, una línea recta indica descenso exponencial (muy bueno).
+        """)
+        
+        # Comparación lado a lado: Original vs Final
+        st.subheader("📊 Comparación: Datos Originales (64D) vs t-SNE (2D)")
+        
+        fig_compare = make_subplots(
+            rows=1, cols=2,
+            subplot_titles=("Primeras 2 componentes originales", "t-SNE embedding (2D)"),
+            horizontal_spacing=0.1
+        )
+        
+        # Original (solo primeras 2 dimensiones para visualizar)
+        fig_compare.add_trace(
+            go.Scatter(
+                x=X[:, 0],
+                y=X[:, 1],
+                mode='markers',
+                marker=dict(size=8, color=colors, opacity=0.7, line=dict(width=0.5, color='white')),
+                text=[f"Dígito {label}" for label in y],
+                hovertemplate='%{text}<br>Dim1: %{x:.2f}<br>Dim2: %{y:.2f}<extra></extra>',
+                name='Original',
+                showlegend=False
+            ),
+            row=1, col=1
+        )
+        
+        # t-SNE Final
+        fig_compare.add_trace(
+            go.Scatter(
+                x=Y_final[:, 0],
+                y=Y_final[:, 1],
+                mode='markers',
+                marker=dict(size=8, color=colors, opacity=0.7, line=dict(width=0.5, color='white')),
+                text=[f"Dígito {label}" for label in y],
+                hovertemplate='%{text}<br>t-SNE1: %{x:.2f}<br>t-SNE2: %{y:.2f}<extra></extra>',
+                name='t-SNE',
+                showlegend=False
+            ),
+            row=1, col=2
+        )
+        
+        # Ejes con misma escala
+        fig_compare.update_xaxes(title_text="Componente 1", scaleanchor="y", scaleratio=1, row=1, col=1)
+        fig_compare.update_yaxes(title_text="Componente 2", row=1, col=1)
+        fig_compare.update_xaxes(title_text="t-SNE dimensión 1", scaleanchor="y2", scaleratio=1, row=1, col=2)
+        fig_compare.update_yaxes(title_text="t-SNE dimensión 2", row=1, col=2)
+        
+        fig_compare.update_layout(height=500, showlegend=False)
+        
+        st.plotly_chart(fig_compare, use_container_width=True)
+        
+        # Explicación
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.info("""
+            **📊 Datos Originales (64D → mostrando 2D):**
+            - Cada dígito MNIST es una imagen 8×8 = 64 píxeles
+            - Aquí solo vemos las primeras 2 dimensiones
+            - **Difícil ver la estructura de clusters**
+            """)
+        with col_b:
+            st.success("""
+            **🎯 t-SNE (64D → 2D):**
+            - Reduce 64 dimensiones a 2
+            - Preserva distancias locales (vecinos cercanos)
+            - **Dígitos similares quedan juntos**
+            - Cada color = un dígito (0-9)
+            """)
+        
+        # Mostrar algunos dígitos de ejemplo
+        st.subheader("🔢 Ejemplos de Dígitos MNIST")
+        
+        import matplotlib.pyplot as plt
+        from io import BytesIO
+        import base64
+        
+        # Seleccionar 10 ejemplos aleatorios (uno de cada clase)
+        example_indices = []
+        for digit in range(10):
+            indices = np.where(y == digit)[0]
+            if len(indices) > 0:
+                example_indices.append(indices[0])
+        
+        # Crear figura con ejemplos
+        fig_examples, axes = plt.subplots(1, 10, figsize=(12, 1.5))
+        for idx, ax in enumerate(axes):
+            if idx < len(example_indices):
+                img_idx = example_indices[idx]
+                img = X[img_idx].reshape(8, 8)
+                ax.imshow(img, cmap='gray_r')
+                ax.set_title(f"{y[img_idx]}", fontsize=14, fontweight='bold')
+                ax.axis('off')
+        
+        plt.tight_layout()
+        
+        # Convertir a imagen para Streamlit
+        buf = BytesIO()
+        fig_examples.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        buf.seek(0)
+        st.image(buf, caption="Ejemplos de cada dígito (0-9) en el dataset", use_container_width=True)
+        plt.close(fig_examples)
+        
+        st.warning("""
+        **⚙️ Ajusta los parámetros:**
+        - **Muestras por dígito:** Más muestras = más representativo pero más lento
+        - **Perplexity (5-50):** Balancea atención local vs global (típico: 30)
+          - Bajo (5-15): Foco muy local, clusters compactos
+          - Alto (30-50): Considera más vecinos, estructura global
+        - **Learning rate (10-1000):** Velocidad de optimización (típico: 200)
+          - Bajo (10-100): Lento pero estable
+          - Alto (500-1000): Rápido pero puede oscilar
+        - **Iteraciones (250-2000):** Más iteraciones = mejor convergencia (típico: 1000)
+        
+        **🎯 Experimenta:**
+        - ¿Algunos dígitos se superponen? → Aumenta perplexity o iteraciones
+        - ¿Dígitos similares (3-8, 4-9) están cerca? → ¡Es correcto! t-SNE preserva similitud visual
+        - ¿Ves outliers? → Pueden ser dígitos mal escritos o ambiguos
+        - ¿KL no converge? → Aumenta iteraciones o ajusta learning rate
+        """)
+    
     # ===== HISTOGRAMAS Y BINES =====
-    if concepto == "Histogramas y Bines":
+    elif concepto == "Histogramas y Bines":
         st.subheader("📊 Número de Bines en un Histograma")
         st.markdown("""
         No hay un número "mejor" de bines. Diferentes números pueden revelar diferentes características de los datos.
