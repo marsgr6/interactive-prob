@@ -889,7 +889,7 @@ elif seccion == "📊 Conceptos Estadísticos":
                     n_components=2,
                     perplexity=perplexity_val,
                     learning_rate=lr_val,
-                    n_iter=n_iter,
+                    max_iter=n_iter,
                     random_state=42,
                     init='random',
                     method='barnes_hut',
